@@ -4,9 +4,40 @@ import { supabase } from "@/app/lib/supabase";
 export const dynamic = "force-dynamic";
 
 const SALON_NAME = "Rose & Sand";
+const TZ = "Asia/Beirut";
+
+function nextDays(count) {
+  const days = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(Date.now() + i * 86400000);
+    days.push({
+      value: d.toLocaleDateString("en-CA", { timeZone: TZ }),
+      label: d.toLocaleDateString("en-US", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        timeZone: TZ,
+      }),
+    });
+  }
+  return days;
+}
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TZ,
+  });
+}
 
 export default async function BookPage({ searchParams }) {
-  const { service: serviceId } = await searchParams;
+  const {
+    service: serviceId,
+    staff: staffId,
+    date,
+    time,
+  } = await searchParams;
 
   const { data: services, error } = await supabase
     .from("services")
@@ -26,6 +57,21 @@ export default async function BookPage({ searchParams }) {
       .select("staff(id, name, role)")
       .eq("service_id", selected.id);
     staff = (data ?? []).map((row) => row.staff).filter(Boolean);
+  }
+
+  const selectedStaff = staff.find((m) => String(m.id) === staffId);
+
+  const days = nextDays(14);
+  const selectedDay = days.find((d) => d.value === date);
+
+  let slots = [];
+  if (selected && selectedStaff && selectedDay) {
+    const { data } = await supabase.rpc("get_available_slots", {
+      p_staff_id: selectedStaff.id,
+      p_service_id: selected.id,
+      p_date: selectedDay.value,
+    });
+    slots = data ?? [];
   }
 
   return (
@@ -76,19 +122,86 @@ export default async function BookPage({ searchParams }) {
               </p>
             ) : (
               <div className="mt-4 flex flex-wrap gap-4">
-                {staff.map((m) => (
+                {staff.map((m) => {
+                  const active = selectedStaff && selectedStaff.id === m.id;
+                  return (
+                    <Link
+                      key={m.id}
+                      href={`/book?service=${selected.id}&staff=${m.id}`}
+                      className={`w-40 rounded-2xl border-2 p-5 text-center ${
+                        active
+                          ? "border-rose bg-blush"
+                          : "border-transparent bg-sand hover:bg-blush"
+                      }`}
+                    >
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blush font-display text-2xl text-rose-dark">
+                        {m.name[0]}
+                      </div>
+                      <p className="mt-3 font-semibold">{m.name}</p>
+                      <p className="text-sm text-ink/60">{m.role}</p>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3 */}
+        {selected && selectedStaff && (
+          <div>
+            <h2 className="mt-10 text-lg font-semibold">3. Pick a day</h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {days.map((d) => {
+                const active = selectedDay && selectedDay.value === d.value;
+                return (
                   <Link
-                    key={m.id}
-                    href={`/book?service=${selected.id}&staff=${m.id}`}
-                    className="w-40 rounded-2xl bg-sand p-5 text-center hover:bg-blush"
+                    key={d.value}
+                    href={`/book?service=${selected.id}&staff=${selectedStaff.id}&date=${d.value}`}
+                    className={`rounded-full border-2 px-4 py-2 text-sm ${
+                      active
+                        ? "border-rose bg-blush"
+                        : "border-transparent bg-sand hover:border-blush"
+                    }`}
                   >
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blush font-display text-2xl text-rose-dark">
-                      {m.name[0]}
-                    </div>
-                    <p className="mt-3 font-semibold">{m.name}</p>
-                    <p className="text-sm text-ink/60">{m.role}</p>
+                    {d.label}
                   </Link>
-                ))}
+                );
+              })}
+            </div>
+
+            {selectedDay && (
+              <div>
+                <h2 className="mt-10 text-lg font-semibold">
+                  Available times, {selectedDay.label}
+                </h2>
+                {slots.length === 0 ? (
+                  <p className="mt-4 text-ink/60">
+                    No available times on this day. Try another day.
+                  </p>
+                ) : (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {slots.map((s) => {
+                      const active =
+                        time &&
+                        new Date(time).getTime() ===
+                          new Date(s.slot_start).getTime();
+                      return (
+                        <Link
+                          key={s.slot_start}
+                          href={`/book?service=${selected.id}&staff=${selectedStaff.id}&date=${selectedDay.value}&time=${encodeURIComponent(s.slot_start)}`}
+                          className={`rounded-full border-2 px-4 py-2 text-sm ${
+                            active
+                              ? "border-rose bg-rose text-white"
+                              : "border-transparent bg-sand hover:border-blush"
+                          }`}
+                        >
+                          {formatTime(s.slot_start)}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

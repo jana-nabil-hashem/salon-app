@@ -36,7 +36,7 @@ export default async function Home() {
           <a href="#services" className="hover:text-rose">Services</a>
           <a href="#team" className="hover:text-rose">Team</a>
           <a
-            href="#"
+          href="/book"
             className="rounded-full bg-rose px-5 py-2 text-white hover:bg-rose-dark"
           >
             Book now
@@ -56,7 +56,7 @@ export default async function Home() {
           Book your appointment online in under a minute.
         </p>
         <a
-          href="#"
+         href="/book"
           className="mt-8 inline-block rounded-full bg-rose px-8 py-3 text-white hover:bg-rose-dark"
         >
           Book now
