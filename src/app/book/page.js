@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase";
+import { confirmBooking } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,19 @@ function formatTime(iso) {
   });
 }
 
+const ERRORS = {
+  taken: "Sorry, this time was just booked. Please pick another time.",
+  invalid: "Please check your name and phone number.",
+  error: "Something went wrong. Please try again.",
+};
+
 export default async function BookPage({ searchParams }) {
   const {
     service: serviceId,
     staff: staffId,
     date,
     time,
+    error: bookingError,
   } = await searchParams;
 
   const { data: services, error } = await supabase
@@ -73,6 +81,10 @@ export default async function BookPage({ searchParams }) {
     });
     slots = data ?? [];
   }
+
+  const chosenSlot = slots.find(
+    (s) => time && new Date(time).getTime() === new Date(s.slot_start).getTime()
+  );
 
   return (
     <div>
@@ -183,9 +195,7 @@ export default async function BookPage({ searchParams }) {
                   <div className="mt-4 flex flex-wrap gap-2">
                     {slots.map((s) => {
                       const active =
-                        time &&
-                        new Date(time).getTime() ===
-                          new Date(s.slot_start).getTime();
+                        chosenSlot && chosenSlot.slot_start === s.slot_start;
                       return (
                         <Link
                           key={s.slot_start}
@@ -205,6 +215,56 @@ export default async function BookPage({ searchParams }) {
               </div>
             )}
           </div>
+        )}
+
+        {/* Step 4 */}
+        {bookingError && (
+          <p className="mt-10 rounded-2xl bg-blush p-4 text-rose-dark">
+            {ERRORS[bookingError] ?? ERRORS.error}
+          </p>
+        )}
+
+        {chosenSlot && (
+          <form action={confirmBooking} className="mt-10">
+            <h2 className="text-lg font-semibold">4. Your details</h2>
+            <p className="mt-2 text-sm text-ink/60">
+              {selected.name} with {selectedStaff.name}, {selectedDay.label} at{" "}
+              {formatTime(chosenSlot.slot_start)}
+            </p>
+
+            <input type="hidden" name="serviceId" value={selected.id} />
+            <input type="hidden" name="staffId" value={selectedStaff.id} />
+            <input type="hidden" name="date" value={selectedDay.value} />
+            <input type="hidden" name="time" value={chosenSlot.slot_start} />
+
+            <div className="mt-4 grid gap-3">
+              <input
+                name="name"
+                type="text"
+                required
+                minLength={2}
+                maxLength={80}
+                placeholder="Full name"
+                className="rounded-2xl border-2 border-transparent bg-sand p-4 outline-none focus:border-rose"
+              />
+              <input
+                name="phone"
+                type="tel"
+                required
+                minLength={6}
+                maxLength={20}
+                placeholder="Phone number (WhatsApp)"
+                className="rounded-2xl border-2 border-transparent bg-sand p-4 outline-none focus:border-rose"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="mt-6 w-full rounded-full bg-rose px-8 py-3 text-white hover:bg-rose-dark"
+            >
+              Confirm booking
+            </button>
+          </form>
         )}
       </main>
     </div>
